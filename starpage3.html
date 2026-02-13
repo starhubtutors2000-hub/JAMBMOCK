@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarHub CBT - Instructions</title>
+
+<style>
+  body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background:#ffffff;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+  }
+
+  .card{
+    background:#fff;
+    width:90%;
+    max-width:550px;
+    padding:25px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.1);
+  }
+
+  h2{
+    text-align:center;
+    color:#0b3d0b;
+    margin-bottom:10px;
+  }
+
+  .info{
+    background:#f3f7f3;
+    padding:12px;
+    border-radius:6px;
+    margin-bottom:15px;
+    font-size:14px;
+  }
+
+  .info span{
+    font-weight:bold;
+    color:#0b3d0b;
+  }
+
+  ul{
+    padding-left:18px;
+  }
+
+  .instructions{
+    font-size:14px;
+    line-height:1.6;
+    margin-top:10px;
+  }
+
+  .agree{
+    margin-top:15px;
+    font-size:14px;
+  }
+
+  .agree input{
+    margin-right:8px;
+  }
+
+  button{
+    width:100%;
+    padding:10px;
+    background:#0b3d0b;
+    color:white;
+    border:none;
+    border-radius:6px;
+    font-size:15px;
+    cursor:pointer;
+    margin-top:15px;
+    opacity:0.6;
+  }
+
+  button:enabled{
+    opacity:1;
+  }
+
+  button:hover:enabled{
+    background:#0b3d0b;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <h2>Exam Instructions</h2>
+
+  <!-- Candidate Info -->
+  <div class="info">
+    Candidate Name: <span id="candidateName"></span><br>
+    Exam Type: <span>UTME MOCK</span><br>
+    Selected Subjects:
+    <ul id="subjectsList"></ul>
+  </div>
+
+  <!-- Instructions -->
+  <div class="instructions">
+    <b>Please read carefully before starting:</b>
+    <ul>
+      <li>You are to attempt all questions.</li>
+      <li>English Language is compulsory.</li>
+      <li>You selected 3 additional subjects.</li>
+      <li>Do not refresh or close the browser during the exam.</li>
+      <li>Once submitted, the exam cannot be retaken.</li>
+      <li>Ensure you have stable internet connection.</li>
+    </ul>
+  </div>
+
+  <!-- Agreement Checkbox -->
+  <div class="agree">
+    <label>
+      <input type="checkbox" id="agreeCheck">
+      I have read and understand the instructions.
+    </label>
+  </div>
+
+  <button id="startBtn" disabled onclick="startExam()">Start Exam</button>
+
+</div>
+
+<script>
+  const candidateName = localStorage.getItem("candidateName");
+  const selectedSubjects = JSON.parse(localStorage.getItem("selectedSubjects") || "[]");
+  const fingerprint = localStorage.getItem("candidateFingerprint");
+
+  // Prevent bypass if session invalid
+  if(!candidateName || selectedSubjects.length !== 4 || !fingerprint){
+    alert("Session expired. Please start again.");
+    window.location.href = "index.html";
+  }
+
+  // Display candidate info
+  document.getElementById("candidateName").textContent = candidateName;
+  const subjectsList = document.getElementById("subjectsList");
+  selectedSubjects.forEach(sub=>{
+    const li = document.createElement("li");
+    li.textContent = sub;
+    subjectsList.appendChild(li);
+  });
+
+  // Enable start button only when checkbox ticked
+  const agreeCheck = document.getElementById("agreeCheck");
+  const startBtn = document.getElementById("startBtn");
+  agreeCheck.addEventListener("change", ()=> startBtn.disabled = !agreeCheck.checked);
+
+  // Start Exam
+  startBtn.addEventListener("click", ()=>{
+    if(!candidateName || selectedSubjects.length !== 4 || !fingerprint){
+      alert("Session expired. Please start again.");
+      window.location.href = "index.html";
+      return;
+    }
+    window.location.href = "starpage4.html";
+  });
+</script>
+</body>
+</html>
