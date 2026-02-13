@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarHub CBT - Exam</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+body{ margin:0; font-family:Arial, sans-serif; background:#f4f6f9; }
+/* HEADER */
+.header{ background:#0b3d0b; color:white; padding:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
+#candInfo{ font-weight:bold; font-size:14px; }
+.header-tools{ display:flex; align-items:center; gap:12px; }
+.header-btn{ background:transparent; border:none; cursor:pointer; padding:4px; display:flex; align-items:center; }
+.header-btn:hover{ opacity:0.8; }
+
+/* SUBJECT TABS */
+#subjectTabs{ display:flex; overflow-x:auto; gap:10px; padding:10px; background:white; }
+.subject-tab{ padding:6px 14px; border:2px solid #0b3d0b; border-radius:20px; cursor:pointer; white-space:nowrap; font-size:14px; }
+.subject-tab.active{ background:#0b3d0b; color:white; }
+
+/* MAIN LAYOUT */
+.main{ display:flex; gap:15px; padding:15px; }
+.left{ flex:3; background:white; padding:15px; border-radius:8px; }
+.right{ flex:1; background:white; padding:10px; border-radius:8px; max-height:500px; overflow:auto; }
+#questionText{ font-weight:bold; margin-bottom:10px; }
+.option{ padding:10px; margin:6px 0; border-radius:6px; border:1px solid #ccc; cursor:pointer; }
+.option.selected{ background:#0f9d58; color:white; border-color:#0f9d58; }
+
+/* QUESTION NUMBERS */
+.qnum{ width:32px; height:32px; line-height:32px; text-align:center; margin:4px; display:inline-block; font-size:12px; font-weight:bold; border-radius:4px; cursor:pointer; color:white; }
+.red{ background:#d32f2f; }
+.green{ background:#388e3c; }
+.current{ border:2px solid #0b3d0b; background:#e6f4ea; color:#0b3d0b; }
+
+/* FOOTER */
+.footer{ display:flex; gap:10px; padding:10px 15px; }
+.footer button{ flex:1; padding:10px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+#prevBtn{ background:#ccc; } 
+#nextBtn{ background:#0b3d0b; color:white; } 
+#submitBtn{ background:#d32f2f; color:white; }
+
+/* CALCULATOR MODAL */
+.calc-modal{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:999; }
+.calc-box{ background:white; padding:15px; width:280px; border-radius:8px; }
+.calc-screen{ width:100%; height:40px; font-size:18px; margin-bottom:8px; }
+.calc-keys{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.calc-keys button{ padding:12px; font-size:16px; cursor:pointer; }
+.close-calc{ width:100%; margin-top:6px; background:#d32f2f; color:white; border:none; padding:8px; cursor:pointer; }
+
+@media(max-width:768px){ .main{ flex-direction:column; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div id="candInfo"></div>
+  <div class="header-tools">
+    <!-- TIMER -->
+    <div id="timer">Loading...</div>
+    <!-- TTS -->
+    <button id="ttsBtn" class="header-btn" title="Read Aloud">
+      <img src="https://i.postimg.cc/G203gRvt/Background-Eraser-20260213-083606563.png" alt="TTS" width="28" height="28">
+    </button>
+    <!-- CALCULATOR -->
+    <button id="openCalc" class="header-btn" title="Calculator">
+      <img src="https://i.postimg.cc/mkH5XxNc/Background-Eraser-20260213-084152616.png" alt="Calculator" width="28" height="28">
+    </button>
+  </div>
+</div>
+
+<div id="subjectTabs"></div>
+
+<div class="main">
+  <div class="left">
+    <div id="questionText"></div> <div id="options"></div>      </div>
+  <div class="right" id="qnums"></div>
+</div>
+
+
+<div class="footer">
+  <button id="prevBtn">Previous</button>
+  <button id="nextBtn">Next</button>
+  <button id="submitBtn">Submit</button>
+</div>
+
+<!-- CALCULATOR -->
+<div class="calc-modal" id="calcModal">
+  <div class="calc-box">
+    <input id="calcScreen" class="calc-screen" readonly>
+    <div class="calc-keys">
+      <button>7</button><button>8</button><button>9</button><button>÷</button>
+      <button>4</button><button>5</button><button>6</button><button>×</button>
+      <button>1</button><button>2</button><button>3</button><button>-</button>
+      <button>0</button><button>.</button><button>=</button><button>+</button>
+      <button>DEL</button><button>C</button>
+    </div>
+    <button class="close-calc">Close</button>
+  </div>
+</div>
+  
+  <!-- Custom Submit Confirmation Modal -->
+<div id="submitModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+  background: rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000;">
+  <div style="background:#fff; padding:20px; border-radius:10px; max-width:400px; text-align:center;">
+    <p style="font-size:16px;">Are you sure you want to submit your exam?</p>
+    <button id="modalYes" style="margin:5px; padding:10px 20px;">Yes</button>
+    <button id="modalNo" style="margin:5px; padding:10px 20px;">No</button>
+  </div>
+</div>
+</div>
+<script>const examData = {
+  "Account": [
+    {question: "A company purchased equipment for ₦500,000 paying ₦200,000 in cash and the rest on credit. What is the effect on total assets?", options:{a:"Increase by ₦500,000",b:"Increase by ₦200,000",c:"No change",d:"Decrease by ₦300,000"}, answer:"a"},
+    {question: "If closing stock is ₦50,000, opening stock ₦30,000, purchases ₦120,000, what is the cost of goods sold?", options:{a:"₦150,000",b:"₦140,000",c:"₦200,000",d:"₦100,000"}, answer:"a"},
+    {question: "Which of the following does NOT affect the profit of a business?", options:{a:"Depreciation",b:"Cash sales",c:"Purchase of machinery",d:"Opening stock"}, answer:"c"},
+    {question: "A firm has capital ₦400,000 and liabilities ₦100,000. Assets are ₦500,000. What is the ROCE if profit is ₦50,000?", options:{a:"10%",b:"12.5%",c:"15%",d:"20%"}, answer:"b"},
+    {question: "Which accounting principle requires revenue to be recorded when earned?", options:{a:"Matching",b:"Accrual",c:"Prudence",d:"Consistency"}, answer:"b"},
+    {question: "A company issues 1,000 shares of ₦10 each at ₦12. How much is the share premium?", options:{a:"₦2,000",b:"₦12,000",c:"₦10,000",d:"₦1,000"}, answer:"a"},
+    {question: "A trader bought goods for ₦50,000 and sold for ₦65,000. What is the profit margin?", options:{a:"30%",b:"25%",c:"35%",d:"15%"}, answer:"b"},
+    {question: "Which account is credited when the owner injects cash into business?", options:{a:"Capital",b:"Cash",c:"Revenue",d:"Drawings"}, answer:"a"},
+    {question: "Which transaction affects both asset and liability accounts?", options:{a:"Cash purchase of equipment",b:"Purchase on credit",c:"Cash sale",d:"Owner’s withdrawal"}, answer:"b"},
+    {question: "Depreciation is considered:", options:{a:"Revenue expense",b:"Capital expenditure",c:"Contra asset",d:"Liability"}, answer:"c"},
+    {question: "If a business pays off a creditor, what happens to the accounting equation?", options:{a:"Assets decrease, liabilities decrease",b:"Assets increase, liabilities decrease",c:"No change",d:"Liabilities increase"}, answer:"a"},
+    {question: "Which of the following is a fixed asset?", options:{a:"Cash",b:"Furniture",c:"Stock",d:"Debtors"}, answer:"b"},
+    {question: "Net profit is calculated as:", options:{a:"Revenue + Expenses",b:"Revenue - Expenses",c:"Assets - Liabilities",d:"Capital + Drawings"}, answer:"b"},
+    {question: "Which is NOT an accounting principle?", options:{a:"Consistency",b:"Going concern",c:"Revenue recognition",d:"Fluctuation principle"}, answer:"d"},
+    {question: "A firm received ₦50,000 from debtors. What effect does it have on cash and debtors?", options:{a:"Cash ↑, Debtors ↓",b:"Cash ↓, Debtors ↓",c:"Cash ↑, Debtors ↑",d:"No effect"}, answer:"a"},
+    {question: "Which account shows what the business owes suppliers?", options:{a:"Debtors",b:"Creditors",c:"Capital",d:"Revenue"}, answer:"b"},
+    {question: "Which of these is a non-current liability?", options:{a:"Bank overdraft",b:"Mortgage",c:"Trade payables",d:"Accrued expenses"}, answer:"b"},
+    {question: "What is the effect of issuing shares at par on capital?", options:{a:"Increase by share value",b:"Decrease by share value",c:"No change",d:"Increase by premium"}, answer:"a"},
+    {question: "Which of these is treated as revenue expenditure?", options:{a:"Repair of machinery",b:"Purchase of land",c:"Purchase of equipment",d:"Construction of building"}, answer:"a"},
+    {question: "Which account would you debit for electricity bill paid in cash?", options:{a:"Electricity expense",b:"Cash",c:"Revenue",d:"Capital"}, answer:"a"}
+  ],
+
+  "Physics": [
+    {question:"A tube of length 0.85 m is closed at one end. If speed of sound is 340 m/s, what is the fundamental frequency?", options:{a:"200 Hz",b:"100 Hz",c:"400 Hz",d:"500 Hz"}, answer:"a"},
+    {question:"Two waves of same amplitude and frequency meet in phase. What happens?", options:{a:"Interference maxima",b:"Cancellation",c:"Doppler shift",d:"Reflection"}, answer:"a"},
+    {question:"A string of length 1 m vibrates at 256 Hz. What is the wave speed if fundamental frequency is produced?", options:{a:"512 m/s",b:"256 m/s",c:"128 m/s",d:"1024 m/s"}, answer:"c"},
+    {question:"Which is true for longitudinal waves?", options:{a:"Particles move perpendicular to wave",b:"Particles move along wave",c:"Particles stationary",d:"Energy not transferred"}, answer:"b"},
+    {question:"Resonance occurs when:", options:{a:"Driving freq = natural freq",b:"Amplitude = 0",c:"Frequency decreases",d:"Wave stops"}, answer:"a"},
+    {question:"Two speakers emit in phase. Destructive interference occurs at points where path difference is:", options:{a:"λ/2",b:"λ",c:"3λ/2",d:"2λ"}, answer:"a"},
+    {question:"The speed of sound is highest in:", options:{a:"Air",b:"Water",c:"Steel",d:"Vacuum"}, answer:"c"},
+    {question:"A tuning fork of freq 512 Hz is used. Wavelength produced in air of speed 340 m/s is:", options:{a:"0.664 m",b:"0.850 m",c:"1.328 m",d:"1.500 m"}, answer:"c"},
+    {question:"Doppler effect occurs when:", options:{a:"Source and observer move relative",b:"Wave amplitude changes",c:"Wave frequency constant",d:"Medium moves"}, answer:"a"},
+    {question:"Sound intensity decreases when:", options:{a:"Distance ↑",b:"Frequency ↑",c:"Amplitude ↑",d:"Medium density ↑"}, answer:"a"},
+    {question:"Frequency of first harmonic of closed tube is 256 Hz. Third harmonic is:", options:{a:"768 Hz",b:"512 Hz",c:"1024 Hz",d:"640 Hz"}, answer:"a"},
+    {question:"The wavelength of sound of 680 Hz in air (v=340 m/s) is:", options:{a:"0.5 m",b:"2 m",c:"0.25 m",d:"1 m"}, answer:"a"},
+    {question:"The intensity of sound is measured in:", options:{a:"Decibel",b:"Hertz",c:"Newton",d:"Pascal"}, answer:"a"},
+    {question:"The frequency of a wave increases from 200 Hz to 400 Hz. Its wavelength:", options:{a:"Halves",b:"Doubles",c:"Unchanged",d:"Zero"}, answer:"a"},
+    {question:"Standing wave forms in tube. Node at closed end, antinode at open. Number of nodes in second harmonic:", options:{a:"2",b:"3",c:"4",d:"1"}, answer:"b"},
+    {question:"Sound intensity level decreases by 20 dB. Energy decreases by:", options:{a:"100 times",b:"10 times",c:"20 times",d:"200 times"}, answer:"a"},
+    {question:"Ultrasound in medicine primarily relies on:", options:{a:"Reflection",b:"Diffraction",c:"Polarization",d:"Interference"}, answer:"a"},
+    {question:"If speed = 340 m/s, freq = 170 Hz, wavelength is:", options:{a:"2 m",b:"1 m",c:"0.5 m",d:"0.25 m"}, answer:"a"},
+    {question:"Sound waves require:", options:{a:"Medium",b:"Vacuum",c:"Empty space",d:"None"}, answer:"a"},
+    {question:"In sound waves, compressions are regions of:", options:{a:"High pressure",b:"Low pressure",c:"Zero pressure",d:"Vacuum"}, answer:"a"}
+  ],
+  "Chemistry": [
+  {question:"A gas occupies 2.0 L at 300 K and 1 atm. If compressed to 1.0 L at same temp, pressure becomes:", options:{a:"2 atm",b:"0.5 atm",c:"1 atm",d:"4 atm"}, answer:"a"},
+  {question:"Which of the following is a physical change?", options:{a:"Dissolving sugar in water",b:"Combustion of wood",c:"Rusting of iron",d:"Baking bread"}, answer:"a"},
+  {question:"Which gas diffuses fastest at same T and P?", options:{a:"H2",b:"O2",c:"N2",d:"CO2"}, answer:"a"},
+  {question:"At constant temp, volume of gas is inversely proportional to pressure. This is:", options:{a:"Boyle’s Law",b:"Charles’ Law",c:"Avogadro’s Law",d:"Dalton’s Law"}, answer:"a"},
+  {question:"Melting point of ice decreases when:", options:{a:"Pressure ↑",b:"Pressure ↓",c:"Temperature ↑",d:"Volume ↓"}, answer:"a"},
+  {question:"Which is a property of liquids only?", options:{a:"Definite volume, indefinite shape",b:"Definite shape, definite volume",c:"Indefinite shape, indefinite volume",d:"Compressible"}, answer:"a"},
+  {question:"Vapor pressure of liquid depends mainly on:", options:{a:"Temperature",b:"Volume",c:"Pressure of container",d:"Mass of liquid"}, answer:"a"},
+  {question:"Which phase change absorbs energy?", options:{a:"Melting",b:"Freezing",c:"Condensation",d:"Deposition"}, answer:"a"},
+  {question:"Gas at 2 atm is heated at constant volume. Pressure becomes 4 atm. New temperature:", options:{a:"600 K",b:"300 K",c:"150 K",d:"450 K"}, answer:"a"},
+  {question:"A sample of gas has density 1.96 g/L. Molar mass if gas constant R=0.0821 L·atm/mol·K at 273 K:", options:{a:"44 g/mol",b:"22 g/mol",c:"88 g/mol",d:"11 g/mol"}, answer:"a"},
+  {question:"Which of these is NOT an ideal gas assumption?", options:{a:"Particles attract each other",b:"Volume negligible",c:"Elastic collisions",d:"Random motion"}, answer:"a"},
+  {question:"Boiling point increases with:", options:{a:"Intermolecular forces ↑",b:"Pressure ↓",c:"Temperature ↓",d:"Volume ↑"}, answer:"a"},
+  {question:"Which gas law relates volume and temperature at constant pressure?", options:{a:"Charles’ Law",b:"Boyle’s Law",c:"Avogadro’s Law",d:"Gay-Lussac"}, answer:"a"},
+  {question:"Critical point is:", options:{a:"Liquid and gas indistinguishable",b:"Boiling point at 1 atm",c:"Melting point",d:"Triple point"}, answer:"a"},
+  {question:"Which liquid has highest vapor pressure at 25°C?", options:{a:"Ether",b:"Water",c:"Glycerol",d:"Mercury"}, answer:"a"},
+  {question:"Sublimation occurs when:", options:{a:"Solid → Gas",b:"Solid → Liquid",c:"Liquid → Gas",d:"Gas → Liquid"}, answer:"a"},
+  {question:"Diffusion rate of gas is fastest when:", options:{a:"Temperature ↑",b:"Pressure ↑",c:"Volume ↓",d:"Molar mass ↑"}, answer:"a"},
+  {question:"Which factor does NOT affect rate of evaporation?", options:{a:"Volume of container",b:"Surface area",c:"Temperature",d:"Humidity"}, answer:"a"},
+  {question:"A liquid boils when:", options:{a:"Vapor pressure = atmospheric pressure",b:"Temp = 100°C always",c:"Density = 1 g/cm³",d:"Volume = 1 L"}, answer:"a"},
+  {question:"Which of these is compressible?", options:{a:"Gas",b:"Liquid",c:"Solid",d:"Plasma"}, answer:"a"}
+],
+
+"Biology": [
+  {question:"Which organ regulates water balance in humans?", options:{a:"Kidney",b:"Liver",c:"Lung",d:"Heart"}, answer:"a"},
+  {question:"Insulin lowers blood glucose by:", options:{a:"Promoting glycogen synthesis",b:"Stimulating gluconeogenesis",c:"Increasing glucose absorption in intestine",d:"Inhibiting glycolysis"}, answer:"a"},
+  {question:"Thermoregulation in humans involves:", options:{a:"Hypothalamus",b:"Medulla",c:"Cerebellum",d:"Pons"}, answer:"a"},
+  {question:"Shivering generates heat by:", options:{a:"Muscle contraction",b:"Brown fat oxidation",c:"Sweat evaporation",d:"Vasodilation"}, answer:"a"},
+  {question:"Which hormone is secreted in response to low blood calcium?", options:{a:"Parathyroid hormone",b:"Calcitonin",c:"Insulin",d:"Glucagon"}, answer:"a"},
+  {question:"Homeostasis involves:", options:{a:"Maintaining internal conditions",b:"Changing internal pH drastically",c:"External adaptation only",d:"Ignoring feedback"}, answer:"a"},
+  {question:"Sweat helps cool the body mainly by:", options:{a:"Evaporation",b:"Conduction",c:"Radiation",d:"Convection"}, answer:"a"},
+  {question:"Which organ excretes urea?", options:{a:"Kidney",b:"Liver",c:"Skin",d:"Lung"}, answer:"a"},
+  {question:"Glucagon acts to:", options:{a:"Increase blood glucose",b:"Decrease blood glucose",c:"Maintain water balance",d:"Regulate body temp"}, answer:"a"},
+  {question:"Which part of brain senses temperature?", options:{a:"Hypothalamus",b:"Cerebellum",c:"Medulla",d:"Pons"}, answer:"a"},
+  {question:"Negative feedback examples include:", options:{a:"Blood glucose regulation",b:"Labor contractions",c:"Positive growth hormone loop",d:"Fever amplification"}, answer:"a"},
+  {question:"Vasodilation occurs when:", options:{a:"Body overheats",b:"Body is cold",c:"Water level low",d:"High blood calcium"}, answer:"a"},
+  {question:"Kidneys regulate:", options:{a:"Water and ion balance",b:"Blood glucose only",c:"Respiration rate",d:"Heart rate"}, answer:"a"},
+  {question:"Homeostasis ensures:", options:{a:"Stable internal environment",b:"Fluctuating internal conditions",c:"No regulation",d:"Only external change"}, answer:"a"},
+  {question:"Which hormone reduces blood calcium?", options:{a:"Calcitonin",b:"PTH",c:"Insulin",d:"Adrenaline"}, answer:"a"},
+  {question:"Body temperature rises above normal. Response:", options:{a:"Sweating and vasodilation",b:"Shivering and vasoconstriction",c:"Increase metabolism",d:"Dehydration"}, answer:"a"},
+  {question:"Which of these is NOT part of negative feedback?", options:{a:"Amplifying stimulus",b:"Blood sugar control",c:"Thermoregulation",d:"Osmoregulation"}, answer:"a"},
+  {question:"Thermoregulation failure leads to:", options:{a:"Hyperthermia or hypothermia",b:"Normal homeostasis",c:"Stable pH",d:"Optimal enzyme function"}, answer:"a"},
+  {question:"Insulin and glucagon are examples of:", options:{a:"Antagonistic hormones",b:"Synergistic hormones",c:"Single function hormones",d:"Paracrine only"}, answer:"a"},
+  {question:"Kidney failure disrupts:", options:{a:"Osmoregulation",b:"Respiration",c:"Digestion",d:"Circulation"}, answer:"a"}
+],
+"Mathematics": [
+  {question:"If 2^x × 2^3 = 16, find x.", options:{a:"1",b:"2",c:"3",d:"4"}, answer:"a"},
+  {question:"Simplify (x^5 ÷ x^2)^3.", options:{a:"x^9",b:"x^15",c:"x^6",d:"x^8"}, answer:"b"},
+  {question:"If (3^x)^2 = 27, x =", options:{a:"1.5",b:"2",c:"3",d:"0.5"}, answer:"a"},
+  {question:"Simplify (a^3b^2)^2 ÷ (a^2b)^3", options:{a:"a^0b^1",b:"a^1b^0",c:"a^2b^3",d:"a^3b^2"}, answer:"a"},
+  {question:"If x^2 × x^3 × x^4 = x^n, find n.", options:{a:"9",b:"6",c:"12",d:"8"}, answer:"a"},
+  {question:"Simplify (2^3 × 2^-1)^2", options:{a:"16",b:"8",c:"4",d:"32"}, answer:"a"},
+  {question:"(x^0 + x^2)^1 = ?", options:{a:"1 + x^2",b:"x^2",c:"0",d:"1"}, answer:"a"},
+  {question:"If a^m × a^n = a^5, and m=2, n=?", options:{a:"3",b:"5",c:"7",d:"2"}, answer:"a"},
+  {question:"Simplify (x^4y^-2)^2 ÷ x^2", options:{a:"x^6y^-4",b:"x^8y^-2",c:"x^2y^-4",d:"x^6y^2"}, answer:"a"},
+  {question:"Evaluate 9^(1/2)", options:{a:"3",b:"81",c:"9",d:"1/3"}, answer:"a"},
+  {question:"Simplify (2x^3y)^2 ÷ 2xy", options:{a:"2x^5y",b:"4x^5y^2",c:"x^6y^2",d:"2x^4y^2"}, answer:"a"},
+  {question:"If 8^x = 64, x =", options:{a:"2",b:"3",c:"1",d:"0.5"}, answer:"a"},
+  {question:"Simplify (x^2)^3 ÷ x^4", options:{a:"x^2",b:"x^6",c:"x^12",d:"x^4"}, answer:"a"},
+  {question:"2^x × 2^(x+1) = 32, x = ?", options:{a:"3",b:"4",c:"5",d:"2"}, answer:"a"},
+  {question:"Simplify (x^-2y^3)^2", options:{a:"x^-4y^6",b:"x^-2y^5",c:"x^-6y^9",d:"x^-3y^6"}, answer:"a"},
+  {question:"If (3x)^2 = 27, x = ?", options:{a:"3",b:"√3",c:"1",d:"9"}, answer:"b"},
+  {question:"Simplify x^3 × x^-1 ÷ x", options:{a:"x",b:"x^2",c:"x^3",d:"x^-1"}, answer:"a"},
+  {question:"(x^0 + 2^0)^3 =", options:{a:"8",b:"1",c:"9",d:"2"}, answer:"a"},
+  {question:"Simplify (x^4y^-2)^3 ÷ (x^2y)^2", options:{a:"x^10y^-8",b:"x^12y^-6",c:"x^8y^-4",d:"x^9y^-5"}, answer:"a"},
+   {question:"If 2^(3x) = 16, x = ?", options:{a:"4/3",b:"2",c:"1",d:"3"}, answer:"a"}
+],
+
+"English": [
+  {question:"Identify the correct concord: The group of boys ___ playing football.", options:{a:"is",b:"are",c:"am",d:"be"}, answer:"a"},
+  {question:"Which sentence is correct?", options:{a:'Neither the teacher nor the students "are" late.',b:'Neither the teacher nor the students "is" late.',c:'Neither the teacher nor the students "were" late.',d:'All wrong'}, answer:"b"},
+  {question:"Correct subject-verb agreement: Every one of the players ___ ready.", options:{a:"is",b:"are",c:"were",d:"have"}, answer:"a"},
+  {question:"Choose correct: Either of the options ___ acceptable.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"The team of doctors ___ on strike.", options:{a:"is",b:"are",c:"was",d:"were"}, answer:"a"},
+  {question:"Each of the students ___ a book.", options:{a:"has",b:"have",c:"had",d:"are"}, answer:"a"},
+  {question:"The couple ___ arrived.", options:{a:"has",b:"have",c:"is",d:"are"}, answer:"a"},
+  {question:"Subject-verb: The news ___ shocking.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Neither of them ___ coming.", options:{a:"is",b:"are",c:"was",d:"were"}, answer:"a"},
+  {question:"Either the boys or the girl ___ guilty.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Subject-verb: Five kilometers ___ too far to walk.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"The committee ___ meeting today.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Each of these books ___ valuable.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"The pair of shoes ___ expensive.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"None of the answers ___ correct.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Every one of them ___ present.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Neither the teacher nor the students ___ aware.", options:{a:"are",b:"is",c:"were",d:"be"}, answer:"b"},
+  {question:"Either of the cars ___ faulty.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"Every student and teacher ___ invited.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"},
+  {question:"None of the milk bottles ___ spoiled.", options:{a:"is",b:"are",c:"were",d:"be"}, answer:"a"}
+],
+"Literature": [
+  {question:"Which of the following is a characteristic of epic literature?", options:{a:"Heroic deeds",b:"Comedy",c:"Short story",d:"Dialogue only"}, answer:"a"},
+  {question:"In literary genre, a satire primarily aims to:", options:{a:"Expose folly",b:"Entertain with romance",c:"Describe nature",d:"Present facts"}, answer:"a"},
+  {question:"The protagonist in a tragedy usually:", options:{a:"Meets a downfall",b:"Triumphs easily",c:"Remains unchanged",d:"Is a narrator"}, answer:"a"},
+  {question:"Drama as a genre is distinct because it:", options:{a:"Is performed",b:"Is never written",c:"Contains only narration",d:"Is always humorous"}, answer:"a"},
+  {question:"A sonnet typically consists of how many lines?", options:{a:"14",b:"12",c:"10",d:"16"}, answer:"a"},
+  {question:"Which is a key feature of modernist literature?", options:{a:"Fragmentation",b:"Simple plots",c:"Moral clarity",d:"Predictable endings"}, answer:"a"},
+  {question:"Allegory in literature is used to:", options:{a:"Convey abstract ideas symbolically",b:"Confuse readers",c:"Present facts",d:"Add rhyme"}, answer:"a"},
+  {question:"Prose differs from poetry mainly in that it:", options:{a:"Does not have structured meter",b:"Always rhymes",c:"Is never written",d:"Is oral only"}, answer:"a"},
+  {question:"Which narrative point of view is most limited?", options:{a:"First-person",b:"Third-person omniscient",c:"Second-person",d:"Objective"}, answer:"a"},
+  {question:"A tragedy’s catharsis refers to:", options:{a:"Emotional release",b:"Happy ending",c:"Comic relief",d:"Plot twist"}, answer:"a"},
+  {question:"Literary foreshadowing is used to:", options:{a:"Hint at future events",b:"Reveal all answers",c:"Describe scenery",d:"Confuse readers"}, answer:"a"},
+  {question:"Imagery primarily appeals to:", options:{a:"The senses",b:"Logic only",c:"Numbers",d:"Time"}, answer:"a"},
+  {question:"Stream of consciousness is a technique that:", options:{a:"Presents inner thoughts directly",b:"Follows strict plot",c:"Uses only dialogue",d:"Avoids perspective"}, answer:"a"},
+  {question:"A Bildungsroman focuses on:", options:{a:"Character development",b:"Historical events",c:"Satirical commentary",d:"Mythical creatures"}, answer:"a"},
+  {question:"Symbolism in literature:", options:{a:"Represents ideas indirectly",b:"Uses literal description only",c:"Ignores themes",d:"Defines plot only"}, answer:"a"},
+  {question:"A tragic hero often has:", options:{a:"A fatal flaw",b:"Superpowers",c:"No conflicts",d:"Perfect judgment"}, answer:"a"},
+  {question:"Irony is effective because it:", options:{a:"Contrasts expectation with reality",b:"Is always obvious",c:"Explains science",d:"Confuses grammar"}, answer:"a"},
+  {question:"Which is an essential feature of a short story?", options:{a:"Unity of effect",b:"Long exposition",c:"Multiple unrelated plots",d:"Epic length"}, answer:"a"},
+  {question:"A protagonist can also be called:", options:{a:"Main character",b:"Antagonist",c:"Narrator only",d:"Minor character"}, answer:"a"},
+  {question:"Dramatic irony occurs when:", options:{a:"Audience knows more than characters",b:"Characters know everything",c:"Plot is predictable",d:"No dialogue"}, answer:"a"}
+],
+
+"Government": [
+  {question:"Which organ of government makes laws?", options:{a:"Legislature",b:"Executive",c:"Judiciary",d:"Cabinet"}, answer:"a"},
+  {question:"Separation of powers ensures:", options:{a:"No branch has absolute power",b:"Executive dominates",c:"Judiciary controls legislature",d:"Legislature rules alone"}, answer:"a"},
+  {question:"The judiciary is responsible for:", options:{a:"Interpreting laws",b:"Enforcing laws",c:"Drafting policies",d:"Collecting taxes"}, answer:"a"},
+  {question:"Executive powers are exercised by:", options:{a:"President or Prime Minister",b:"Judges",c:"Legislators",d:"Citizens directly"}, answer:"a"},
+  {question:"Legislative powers include:", options:{a:"Making statutes",b:"Executing programs",c:"Judging cases",d:"Military command"}, answer:"a"},
+  {question:"A government that follows rule of law ensures:", options:{a:"Everyone is accountable",b:"Only rulers are powerful",c:"Laws are ignored",d:"Unilateral decisions"}, answer:"a"},
+  {question:"Checks and balances mean:", options:{a:"Branches control each other",b:"Branches merge",c:"Executive rules alone",d:"Legislature dominates"}, answer:"a"},
+  {question:"Judicial independence is necessary to:", options:{a:"Prevent political influence",b:"Control legislature",c:"Assist executive",d:"Enforce taxes"}, answer:"a"},
+  {question:"A bill becomes law after:", options:{a:"Legislature approval and executive assent",b:"Judiciary decision",c:"Public vote only",d:"Executive declaration only"}, answer:"a"},
+  {question:"The cabinet is part of:", options:{a:"Executive",b:"Legislature",c:"Judiciary",d:"Civil society"}, answer:"a"},
+  {question:"Rule of law implies:", options:{a:"Law applies to all equally",b:"Rulers are above law",c:"Law is optional",d:"Judges decide randomly"}, answer:"a"},
+  {question:"The main function of local government is:", options:{a:"Delivering community services",b:"Making national laws",c:"Judging crimes",d:"Running courts"}, answer:"a"},
+  {question:"The legislature can check executive power by:", options:{a:"Oversight and impeachment",b:"Executing orders",c:"Judging citizens",d:"Appointing judges alone"}, answer:"a"},
+  {question:"A federal government divides powers between:", options:{a:"Central and state authorities",b:"One ruler and parliament",c:"Judiciary only",d:"Local councils only"}, answer:"a"},
+  {question:"Judicial review allows courts to:", options:{a:"Invalidate unconstitutional acts",b:"Pass budgets",c:"Enforce military orders",d:"Draft bills"}, answer:"a"},
+  {question:"Executive accountability is enforced by:", options:{a:"Legislature and courts",b:"Military",c:"Media alone",d:"Private citizens"}, answer:"a"},
+  {question:"Legislation must comply with:", options:{a:"Constitution",b:"Tradition",c:"Religion",d:"Custom only"}, answer:"a"},
+  {question:"Government transparency ensures:", options:{a:"Citizens can monitor activities",b:"Leaders act secretly",c:"Laws are hidden",d:"Judges decide secretly"}, answer:"a"},
+  {question:"Federalism helps to:", options:{a:"Distribute powers",b:"Concentrate powers",c:"Eliminate states",d:"Centralize judiciary"}, answer:"a"},
+  {question:"Separation of powers prevents:", options:{a:"Tyranny and abuse",b:"Public participation",c:"Voting",d:"Economic growth"}, answer:"a"}
+],
+
+"Economics": [
+  {question:"Price elasticity of demand measures:", options:{a:"Responsiveness to price changes",b:"Income only",c:"Supply changes",d:"Production cost"}, answer:"a"},
+  {question:"If demand is inelastic, a price rise will:", options:{a:"Increase total revenue",b:"Decrease total revenue",c:"Have no effect",d:"Decrease supply"}, answer:"a"},
+  {question:"Law of demand states:", options:{a:"Price and quantity demanded are inversely related",b:"Directly related",c:"Unrelated",d:"Constant"}, answer:"a"},
+  {question:"Market equilibrium occurs when:", options:{a:"Quantity demanded = quantity supplied",b:"Demand > supply",c:"Supply > demand",d:"Government sets price"}, answer:"a"},
+  {question:"A supply curve typically slopes:", options:{a:"Upwards",b:"Downwards",c:"Horizontally",d:"Vertical"}, answer:"a"},
+  {question:"Perfectly elastic demand has:", options:{a:"Horizontal demand curve",b:"Vertical",c:"Downward",d:"Upward"}, answer:"a"},
+  {question:"Cross elasticity of demand measures:", options:{a:"Effect of price change of one good on another",b:"Income only",c:"Quantity only",d:"Supply only"}, answer:"a"},
+  {question:"Normal goods have:", options:{a:"Positive income elasticity",b:"Negative",c:"Zero",d:"Unrelated"}, answer:"a"},
+  {question:"Inferior goods have:", options:{a:"Negative income elasticity",b:"Positive",c:"Zero",d:"Variable"}, answer:"a"},
+  {question:"If elasticity > 1, demand is:", options:{a:"Elastic",b:"Inelastic",c:"Unitary",d:"Perfect"}, answer:"a"},
+  {question:"Total revenue test is used to:", options:{a:"Determine elasticity",b:"Calculate GDP",c:"Set taxes",d:"Measure supply"}, answer:"a"},
+  {question:"Price ceiling leads to:", options:{a:"Shortage",b:"Surplus",c:"Equilibrium",d:"Price increase"}, answer:"a"},
+  {question:"Price floor leads to:", options:{a:"Surplus",b:"Shortage",c:"Equilibrium",d:"Demand increase"}, answer:"a"},
+  {question:"Supply elasticity measures:", options:{a:"Responsiveness of quantity supplied to price",b:"Income effect",c:"Demand shift",d:"Government regulation"}, answer:"a"},
+  {question:"Ceteris paribus means:", options:{a:"All else equal",b:"Demand shifts",c:"Elasticity",d:"Variable"}, answer:"a"},
+  {question:"Unitary elasticity means:", options:{a:"Percentage change in quantity = percentage change in price",b:"Demand rises only",c:"Supply rises only",d:"No change"}, answer:"a"},
+  {question:"Law of diminishing returns relates to:", options:{a:"Additional output decreases with more input",b:"Demand rises",c:"Supply constant",d:"Revenue increases"}, answer:"a"},
+  {question:"Indirect tax shifts supply:", options:{a:"Leftward",b:"Rightward",c:"No effect",d:"Depends on income"}, answer:"a"},
+  {question:"Elasticity helps producers to:", options:{a:"Decide pricing strategy",b:"Determine taxes",c:"Control government",d:"Ignore demand"}, answer:"a"},
+  {question:"Substitutes have:", options:{a:"Positive cross elasticity",b:"Negative",c:"Zero",d:"Unrelated"}, answer:"a"}
+],
+
+"Commerce": [
+  {question:"Aids to commerce include:", options:{a:"Transport, communication, banking",b:"Production only",c:"Consumption only",d:"Retail only"}, answer:"a"},
+  {question:"Internal trade refers to:", options:{a:"Within a country",b:"Between countries",c:"Across continents",d:"Internet only"}, answer:"a"},
+  {question:"External trade occurs:", options:{a:"Between countries",b:"Within a country",c:"Local market only",d:"Domestic trade"}, answer:"a"},
+  {question:"E-commerce primarily uses:", options:{a:"Electronic platforms",b:"Physical stores only",c:"Manual ledgers",d:"Verbal contracts"}, answer:"a"},
+  {question:"Banking aids commerce by:", options:{a:"Providing credit and loans",b:"Producing goods",c:"Selling only",d:"Transporting"}, answer:"a"},
+  {question:"Insurance protects:", options:{a:"Against risks",b:"Profits only",c:"Debt only",d:"Goods only"}, answer:"a"},
+  {question:"Warehousing helps commerce by:", options:{a:"Storing goods safely",b:"Transporting only",c:"Selling goods",d:"Producing"}, answer:"a"},
+  {question:"Transport affects commerce because:", options:{a:"Moves goods to market",b:"Produces goods",c:"Measures price",d:"Taxes only"}, answer:"a"},
+  {question:"Communication aids commerce by:", options:{a:"Transmitting information",b:"Producing goods",c:"Transporting",d:"Insuring only"}, answer:"a"},
+  {question:"Retail trade involves:", options:{a:"Selling to final consumers",b:"Wholesale only",c:"Importing only",d:"Manufacturing"}, answer:"a"},
+  {question:"Wholesale trade involves:", options:{a:"Selling to retailers",b:"Direct consumers",c:"Government only",d:"Banking"}, answer:"a"},
+  {question:"Advertising aids commerce by:", options:{a:"Informing and persuading buyers",b:"Producing goods",c:"Transporting goods",d:"Banking only"}, answer:"a"},
+  {question:"Packaging is important because:", options:{a:"Protects and markets goods",b:"Produces goods",c:"Distributes credit",d:"Stores money"}, answer:"a"},
+  {question:"Credit facilities help commerce by:", options:{a:"Enabling purchases without immediate cash",b:"Producing goods",c:"Transporting only",d:"Insuring risks only"}, answer:"a"},
+  {question:"Trade license ensures:", options:{a:"Legal operation",b:"Profit maximization",c:"Government monopoly",d:"Consumer rights only"}, answer:"a"},
+  {question:"Barter trade involves:", options:{a:"Exchange of goods for goods",b:"Money only",c:"Credit only",d:"Electronic trade"}, answer:"a"},
+  {question:"Bank drafts aid commerce by:", options:{a:"Guaranteeing payment",b:"Producing goods",c:"Transporting",d:"Storing"}, answer:"a"},
+  {question:"Commerce efficiency is improved by:", options:{a:"Reducing costs and delays",b:"Ignoring taxes",c:"Reducing production",d:"Increasing risks"}, answer:"a"},
+  {question:"Insurance premiums are paid to:", options:{a:"Cover potential losses",b:"Increase profit directly",c:"Pay wages",d:"Transport goods"}, answer:"a"},
+  {question:"Trade associations help commerce by:", options:{a:"Coordinating business activities",b:"Producing only",c:"Advertising only",d:"Banking only"}, answer:"a"}
+],
+"C.R.K": [
+  {question:"The sovereignty of God means:", options:{a:"God has supreme authority over all",b:"Humans control destiny",c:"Nature rules",d:"Time is independent"}, answer:"a"},
+  {question:"God’s omnipotence implies:", options:{a:"Unlimited power",b:"Limited control",c:"Conditional authority",d:"Subject to humans"}, answer:"a"},
+  {question:"God’s omniscience refers to:", options:{a:"All-knowing nature",b:"Limited knowledge",c:"Knows future only",d:"Knows past only"}, answer:"a"},
+  {question:"God’s omnipresence means:", options:{a:"Present everywhere",b:"Confined to heaven",c:"Hidden in earth",d:"Visible only"}, answer:"a"},
+  {question:"God’s holiness indicates:", options:{a:"Moral perfection",b:"Imperfection",c:"Neutrality",d:"Dependence on humans"}, answer:"a"},
+  {question:"Providence refers to:", options:{a:"God’s care and guidance",b:"Random chance",c:"Human choice alone",d:"Natural events only"}, answer:"a"},
+  {question:"Divine justice ensures:", options:{a:"Fairness in judgment",b:"Favoritism",c:"Partiality",d:"Randomness"}, answer:"a"},
+  {question:"Faith in God involves:", options:{a:"Trust in His will",b:"Doubt",c:"Ignoring commands",d:"Dependence on self"}, answer:"a"},
+  {question:"Prayer demonstrates:", options:{a:"Communication with God",b:"Merely routine",c:"Social duty only",d:"Scientific test"}, answer:"a"},
+  {question:"God’s mercy means:", options:{a:"Compassion for sinners",b:"Punishment only",c:"Neutrality",d:"Favoring only select"}, answer:"a"},
+  {question:"Salvation is attained through:", options:{a:"Faith and obedience",b:"Works only",c:"Wealth",d:"Knowledge alone"}, answer:"a"},
+  {question:"God’s eternity implies:", options:{a:"No beginning or end",b:"Limited time",c:"Dependent on creation",d:"Subject to seasons"}, answer:"a"},
+  {question:"God is immutable, meaning:", options:{a:"Unchanging",b:"Variable",c:"Conditional",d:"Weak"}, answer:"a"},
+  {question:"God’s wisdom ensures:", options:{a:"Right guidance",b:"Random decisions",c:"Mistakes",d:"Ignorance"}, answer:"a"},
+  {question:"The sovereignty of God excludes:", options:{a:"Nothing in creation",b:"Freedom for humans",c:"Chaos",d:"Natural laws"}, answer:"a"},
+  {question:"God’s omnipotence does NOT mean:", options:{a:"Acts against His nature",b:"Supreme power",c:"Authority",d:"Control"}, answer:"a"},
+  {question:"Faithful living demonstrates:", options:{a:"Alignment with God’s will",b:"Rebellion",c:"Neglect",d:"Indifference"}, answer:"a"},
+  {question:"God’s commands are:", options:{a:"Authoritative",b:"Optional",c:"Conflicting",d:"Irrelevant"}, answer:"a"},
+  {question:"Prayer should be accompanied by:", options:{a:"Obedience",b:"Doubt",c:"Laziness",d:"Neglect"}, answer:"a"},
+  {question:"Trust in God leads to:", options:{a:"Spiritual peace",b:"Confusion",c:"Punishment",d:"Loss"}, answer:"a"}
+]
+};
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+  /******** FIREBASE CONFIG ********/
+  const firebaseConfig = {
+    apiKey: "AIzaSyBQHoqSFbY_Z4DbwGbFzrPg2chbE7gdS04",
+    authDomain: "starhub-cbt-system.firebaseapp.com",
+    projectId: "starhub-cbt-system",
+    storageBucket: "starhub-cbt-system.appspot.com",
+    messagingSenderId: "738358959988",
+    appId: "1:738358959988:web:5ba5600cc7b6d107add621",
+    measurementId: "G-QD9766ZNVJ"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  /******** SESSION CHECK ********/
+  const candidateName = localStorage.getItem("candidateName");
+  const selectedSubjects = JSON.parse(localStorage.getItem("selectedSubjects") || "[]");
+  const fingerprint = localStorage.getItem("candidateFingerprint");
+
+  if (!candidateName || selectedSubjects.length !== 4 || !fingerprint) {
+    alert("Session expired");
+    location.href = "index.html";
+  }
+
+  document.getElementById("candInfo").textContent = candidateName + " | UTME MOCK";
+
+  /******** TIMER ********/
+  let totalSeconds = 0, endTime;
+  db.collection("settings").doc("examConfig").get().then(doc => {
+    if (!doc.exists) { alert("Exam duration not set by admin"); return; }
+    totalSeconds = doc.data().durationMinutes * 60;
+
+    db.collection("cbtSessions").doc(fingerprint).get().then(snap => {
+      if (snap.exists && snap.data().endTime) {
+        endTime = snap.data().endTime;
+      } else {
+        endTime = Date.now() + totalSeconds * 1000;
+        db.collection("cbtSessions").doc(fingerprint).set({
+          candidateName, fingerprint,
+          endTime, startedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+      startTimer();
+    });
+  });
+
+  function startTimer() {
+    const timerDiv = document.getElementById("timer");
+    const interval = setInterval(() => {
+      const left = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      const h = Math.floor(left / 3600);
+      const m = Math.floor((left % 3600) / 60);
+      const s = left % 60;
+      timerDiv.textContent = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      if (left <= 0) { clearInterval(interval); submit("timeout"); }
+    }, 1000);
+  }
+
+  /******** QUESTIONS SETUP ********/
+  const filteredExamData = {};
+  selectedSubjects.forEach(s => {
+    if (examData[s]) filteredExamData[s] = shuffle([...examData[s]]);
+  });
+  const subjects = Object.keys(filteredExamData);
+  let currentSubject = subjects[0], qIndex = 0;
+
+  let answers = {};
+  subjects.forEach(s => answers[s] = Array(filteredExamData[s].length).fill(null));
+  const cached = localStorage.getItem("answers");
+  if (cached) answers = JSON.parse(cached);
+
+  /******** SUBJECT TABS ********/
+  const tabs = document.getElementById("subjectTabs");
+  subjects.forEach(s => {
+    const t = document.createElement("div");
+    t.className = "subject-tab";
+    t.textContent = s;
+    t.onclick = () => { currentSubject = s; qIndex = 0; render(); };
+    tabs.appendChild(t);
+  });
+  if (tabs.firstChild) tabs.firstChild.classList.add("active");
+
+  /******** RENDER FUNCTION ********/
+  function render() {
+    const questionTextDiv = document.getElementById("questionText");
+    const optionsDiv = document.getElementById("options");
+    const qnumsDiv = document.getElementById("qnums");
+    if (!questionTextDiv || !optionsDiv || !qnumsDiv) return;
+
+    document.querySelectorAll(".subject-tab").forEach(t => t.classList.remove("active"));
+    [...tabs.children].find(t => t.textContent === currentSubject).classList.add("active");
+
+    const q = filteredExamData[currentSubject][qIndex];
+    questionTextDiv.textContent = `${qIndex + 1}. ${q.question}`;
+
+    optionsDiv.innerHTML = "";
+    Object.keys(q.options).forEach(k => {
+      const div = document.createElement("div");
+      div.className = "option";
+      div.textContent = q.options[k];
+      if (answers[currentSubject][qIndex] === k) div.classList.add("selected");
+      div.onclick = () => {
+        answers[currentSubject][qIndex] = k;
+        localStorage.setItem("answers", JSON.stringify(answers));
+        render();
+      };
+      optionsDiv.appendChild(div);
+    });
+
+    qnumsDiv.innerHTML = "";
+    filteredExamData[currentSubject].forEach((_, i) => {
+      const d = document.createElement("div");
+      d.className = "qnum " + (answers[currentSubject][i] ? "green" : "red");
+      if (i === qIndex) d.classList.add("current");
+      d.textContent = i + 1;
+      d.onclick = () => { qIndex = i; render(); };
+      qnumsDiv.appendChild(d);
+    });
+  }
+
+  /******** NAVIGATION ********/
+  document.getElementById("prevBtn").onclick = () => { if (qIndex > 0) { qIndex--; render(); } };
+  document.getElementById("nextBtn").onclick = () => {
+    if (qIndex < filteredExamData[currentSubject].length - 1) { qIndex++; render(); }
+    else {
+      const nextSubIndex = subjects.indexOf(currentSubject) + 1;
+      if (nextSubIndex < subjects.length) { currentSubject = subjects[nextSubIndex]; qIndex = 0; render(); }
+    }
+  };
+
+  /******** SUBMIT ********/
+  let examSubmitted = false;
+  function submit(reason) {
+    if (examSubmitted) return;
+    examSubmitted = true;
+
+    const scores = {};
+    let totalRaw = 0;
+    subjects.forEach(s => {
+      let score = 0;
+      filteredExamData[s].forEach((q, i) => {
+        const user = answers[s][i];
+        if (user === q.answer) score += 1;
+        else if (user && user !== q.answer) score -= 0.5;
+      });
+      scores[s] = Math.max(0, score);
+      totalRaw += scores[s];
+    });
+
+    const totalQuestions = Object.values(filteredExamData).reduce((acc, arr) => acc + arr.length, 0);
+    const jambScore = Math.round((totalRaw / totalQuestions) * 400);
+
+    db.collection("cbtResults").add({
+      candidateName, fingerprint, subjects, answers,
+      scores, rawScore: totalRaw, jambScore,
+      reason, submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      localStorage.removeItem("answers");
+      location.href = "starpage5.html";
+    }).catch(err => {
+      console.error("Submission error:", err);
+      location.href = "starpage5.html?error=1";
+    });
+  }
+
+  document.getElementById("submitBtn").onclick = () => {
+    const modal = document.getElementById("submitModal");
+    modal.style.display = "flex";
+  };
+  document.getElementById("modalYes").onclick = () => { submit("manual"); };
+  document.getElementById("modalNo").onclick = () => { document.getElementById("submitModal").style.display = "none"; };
+
+  /******** ANTI-CHEAT ********/
+  document.addEventListener("visibilitychange", () => { if (document.hidden) submit("app_switch"); });
+  window.addEventListener("blur", () => { submit("window_blur"); });
+
+  /******** CALCULATOR ********/
+  const openCalcBtn = document.getElementById("openCalc");
+  const calcModal = document.getElementById("calcModal");
+  const calcScreen = document.getElementById("calcScreen");
+  document.querySelector(".close-calc").onclick = () => { calcModal.style.display = "none"; };
+  openCalcBtn.onclick = () => { calcModal.style.display = "flex"; };
+  document.querySelectorAll(".calc-keys button").forEach(b => {
+    b.onclick = () => {
+      let v = b.textContent;
+      if (v === "=") {
+        try { calcScreen.value = Function("return " + calcScreen.value.replace(/÷/g, "/").replace(/×/g, "*"))(); }
+        catch { calcScreen.value = "Error"; }
+      } else if (v === "DEL") calcScreen.value = calcScreen.value.slice(0, -1);
+      else if (v === "C") calcScreen.value = "";
+      else { if (calcScreen.value === "Error") calcScreen.value = ""; calcScreen.value += v; }
+    };
+  });
+
+  /******** TTS ********/
+  let ttsSpeaking = false;
+  document.getElementById("ttsBtn").onclick = () => {
+    if (ttsSpeaking) { speechSynthesis.cancel(); ttsSpeaking = false; return; }
+    const q = filteredExamData[currentSubject][qIndex];
+    const opts = Object.keys(q.options).map((k, i) => `Option ${i+1}: ${q.options[k]}`).join(". ");
+    if ("speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(`Question ${qIndex + 1}. ${q.question}. ${opts}`);
+      u.lang = "en-US";
+      speechSynthesis.speak(u);
+      ttsSpeaking = true;
+    } else alert("TTS not supported");
+  };
+
+  /******** UTIL ********/
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  render();
+});
+</script>
+</body>
+</html>
