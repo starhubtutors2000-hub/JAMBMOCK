@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarHub CBT - Subject Selection</title>
+
+<style>
+  body{
+    margin:0;
+    font-family: Arial, sans-serif;
+    background:#ffffff;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+  }
+
+  .card{
+    background:#fff;
+    width:90%;
+    max-width:480px;
+    padding:25px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.1);
+  }
+
+  h2{
+    text-align:center;
+    color:#0b3d0b;
+    margin-bottom:10px;
+  }
+
+  .info{
+    background:#f3f7f3;
+    padding:10px;
+    border-radius:6px;
+    margin-bottom:15px;
+    font-size:14px;
+  }
+
+  .info span{
+    font-weight:bold;
+    color:#0b3d0b;
+  }
+
+  .subjects{
+    max-height:260px;
+    overflow-y:auto;
+    margin-bottom:15px;
+  }
+
+  label{
+    display:block;
+    margin:7px 0;
+    cursor:pointer;
+  }
+
+  input[type="checkbox"]{
+    margin-right:8px;
+  }
+
+  button{
+    width:100%;
+    padding:10px;
+    background:#0b3d0b;
+    color:white;
+    border:none;
+    border-radius:6px;
+    font-size:15px;
+    cursor:pointer;
+  }
+
+  button:hover{
+    background:#065006;
+  }
+
+  .error{
+    color:red;
+    text-align:center;
+    margin-top:10px;
+    font-weight:bold;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <h2>Subject Selection</h2>
+
+  <!-- Candidate Info Display -->
+  <div class="info">
+    Candidate Name: <span id="candidateNameDisplay"></span><br>
+    Exam Type: <span>UTME MOCK</span>
+  </div>
+
+  <p style="font-size:14px;text-align:center;">
+    Select only <b>3 subjects</b> in addition to English (Compulsory)
+  </p>
+
+<div class="subjects">
+  <label><input type="checkbox" checked disabled> English (Compulsory)</label>
+  <label><input type="checkbox" class="subject" value="Mathematics"> Mathematics</label>
+  <label><input type="checkbox" class="subject" value="Physics"> Physics</label>
+  <label><input type="checkbox" class="subject" value="Chemistry"> Chemistry</label>
+  <label><input type="checkbox" class="subject" value="Biology"> Biology</label>
+  <label><input type="checkbox" class="subject" value="Economics"> Economics</label>
+  <label><input type="checkbox" class="subject" value="Commerce"> Commerce</label>
+  <label><input type="checkbox" class="subject" value="Account"> Account</label>
+  <label><input type="checkbox" class="subject" value="Government"> Government</label>
+  <label><input type="checkbox" class="subject" value="Literature"> Literature</label>
+  <label><input type="checkbox" class="subject" value="C.R.K"> C. R. K</label>
+</div>
+
+  <button onclick="proceed()">Proceed to Exam</button>
+  <div class="error" id="error"></div>
+
+</div>
+
+<script>
+  // Get candidate name from localStorage
+  const candidateName = localStorage.getItem("candidateName");
+  if(!candidateName){
+    window.location.href = "index.html"; // Prevent bypass
+  }
+  document.getElementById("candidateNameDisplay").textContent = candidateName;
+
+  // Generate a simple device fingerprint
+  function getDeviceFingerprint(){
+    return navigator.userAgent + "-" + navigator.platform + "-" + screen.width + "x" + screen.height;
+  }
+
+  // Store fingerprint and placeholder IP
+  localStorage.setItem("candidateFingerprint", getDeviceFingerprint());
+  localStorage.setItem("candidateIP", "online"); // placeholder for session check
+
+  // Proceed function
+  function proceed(){
+    const selected = document.querySelectorAll('.subject:checked');
+    const error = document.getElementById('error');
+
+    if(selected.length !== 3){
+      error.textContent = "❌ You must select exactly 3 subjects.";
+      return;
+    }
+
+    let subjects = ["English"];
+    selected.forEach(sub => {
+      subjects.push(sub.value);
+    });
+
+    localStorage.setItem("selectedSubjects", JSON.stringify(subjects));
+    window.location.href = "starpage3.html";
+  }
+</script>
+</body>
+  </html>
