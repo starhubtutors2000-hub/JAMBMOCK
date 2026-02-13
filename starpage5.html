@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exam Submission Status</title>
+<style>
+  body{
+    margin:0; font-family:Arial,sans-serif; background:#f0f2f5;
+  }
+  .container{
+    display:flex; justify-content:center; align-items:center; height:100vh; flex-direction:column;
+  }
+  .card{
+    background:#fff; padding:30px 40px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.2); text-align:center; max-width:400px; width:90%;
+  }
+  .status-title{ font-size:20px; margin-bottom:10px; }
+  .status-title.success{ color:green; font-weight:bold; }
+  .status-title.failure{ color:red; font-weight:bold; }
+  .status-msg{ font-size:16px; margin-bottom:20px; }
+  .status-msg b{ font-weight:bold; }
+  .buttons{ display:flex; justify-content:center; gap:10px; flex-wrap:wrap; }
+  .btn{
+    padding:10px 15px; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold; text-decoration:none; color:#fff;
+    background-color:green; transition:0.2s;
+  }
+  .btn:hover{ background-color:#006400; }
+  .spinner{
+    border:4px solid #f3f3f3; border-top:4px solid green; border-radius:50%; width:30px; height:30px; animation:spin 1s linear infinite; margin:0 auto 20px;
+  }
+  @keyframes spin{ 0%{transform:rotate(0deg);}100%{transform:rotate(360deg);} }
+
+  /* AI floating button */
+  .ai-btn{
+    position:fixed; bottom:60px; right:20px; width:60px; height:60px; background:green; border-radius:50%; display:flex; justify-content:center; align-items:center; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.3);
+    z-index:1000;
+    display:none;
+  }
+  .ai-btn img{ width:40px; height:40px; border-radius:50%; }
+
+  .ai-tooltip{
+    position:fixed; bottom:130px; right:80px; background:green; color:#fff; padding:10px 15px; border-radius:6px; font-size:14px; font-weight:bold; display:none; box-shadow:0 2px 6px rgba(0,0,0,0.3); max-width:200px;
+    word-wrap: break-word;
+  }
+</style>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <div class="spinner" id="spinner"></div>
+    <div class="status-title" id="statusTitle"></div>
+    <div class="status-msg" id="statusMsg"></div>
+    <div class="buttons">
+      <a href="#" class="btn" id="homeBtn">Back to Home</a>
+      <a href="#" class="btn" id="contactBtn">Contact via WhatsApp</a>
+    </div>
+  </div>
+</div>
+
+<div class="ai-tooltip" id="aiTooltip">Your 24/7 StarHub Tutors support is available here!</div>
+<div class="ai-btn" id="aiBtn">
+  <img src="https://i.postimg.cc/QtKwNXXM/Background-Eraser-20260213-145038242.png" alt="AI Bot">
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded",()=>{
+  const firebaseConfig = {
+    apiKey: "AIzaSyBQHoqSFbY_Z4DbwGbFzrPg2chbE7gdS04",
+    authDomain: "starhub-cbt-system.firebaseapp.com",
+    projectId: "starhub-cbt-system",
+    storageBucket: "starhub-cbt-system.appspot.com",
+    messagingSenderId: "738358959988",
+    appId: "1:738358959988:web:5ba5600cc7b6d107add621",
+    measurementId: "G-QD9766ZNVJ"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const spinner = document.getElementById("spinner");
+  const statusTitle = document.getElementById("statusTitle");
+  const statusMsg = document.getElementById("statusMsg");
+  const homeBtn = document.getElementById("homeBtn");
+  const contactBtn = document.getElementById("contactBtn");
+  const aiBtn = document.getElementById("aiBtn");
+  const aiTooltip = document.getElementById("aiTooltip");
+
+  const candidateName = localStorage.getItem("candidateName") || "Candidate";
+  const fingerprint = localStorage.getItem("candidateFingerprint");
+
+  homeBtn.style.display="none";
+  contactBtn.style.display="none";
+  aiBtn.style.display="none";
+
+  function showTooltip(duration=10000){
+    aiTooltip.style.display="block";
+    setTimeout(()=>{ aiTooltip.style.display="none"; },duration);
+  }
+
+  function checkSubmission(){
+    spinner.style.display="block";
+    db.collection("cbtResults").where("fingerprint","==",fingerprint).get()
+    .then(snapshot=>{
+      spinner.style.display="none";
+      if(!snapshot.empty){
+        statusTitle.textContent = "✅ Your exam has been submitted successfully!";
+        statusTitle.className="status-title success";
+        statusMsg.innerHTML = `Candidate: <b>${candidateName}</b>`;
+        homeBtn.style.display="inline-block";
+        homeBtn.href = "https://starhubtutors.netlify.app"
+      } else {
+        statusTitle.textContent="❌ Exam submission failed!";
+        statusTitle.className="status-title failure";
+        statusMsg.innerHTML=`Dear <b>${candidateName}</b>, your result was not successfully submitted. Kindly contact the invigilator.`;
+        contactBtn.style.display="inline-block";
+        aiBtn.style.display="flex";
+        contactBtn.href = `https://wa.me/2349079867370?text=${encodeURIComponent("Hello, I am "+candidateName+". My exam submission failed. Please assist.")}`;
+        showTooltip();
+      }
+    }).catch(err=>{
+      spinner.style.display="none";
+      statusTitle.textContent="❌ Error checking submission!";
+      statusTitle.className="status-title failure";
+      statusMsg.innerHTML=`Dear <b>${candidateName}</b>, we could not verify your result. Kindly contact the invigilator.`;
+      contactBtn.style.display="inline-block";
+      aiBtn.style.display="flex";
+      contactBtn.href = `https://wa.me/2349079867370?text=${encodeURIComponent("Hello, I am "+candidateName+". My exam submission failed. Please assist.")}`;
+      showTooltip();
+    });
+  }
+
+  aiBtn.onclick = ()=>{ showTooltip(); window.location.href="supportBot.html" }
+
+  checkSubmission();
+});
+</script>
+</body>
+</html>
