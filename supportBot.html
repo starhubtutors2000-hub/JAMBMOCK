@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StarHub CBT Support Team</title>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f3f3f3;
+  }
+
+  h1 { 
+    text-align:center; 
+    margin-top:10px; 
+    font-size: 20px; 
+  }
+
+  #chatContainer {
+    max-width: 600px;
+    margin: 20px auto;
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px;
+    height: 70vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 20px;
+    max-width: 70%;
+    word-wrap: break-word;
+    font-size: 14px;
+  }
+
+  .user {
+    background: #DCF8C6;
+    color: #000;
+    align-self: flex-end;
+    border-bottom-right-radius: 0;
+  }
+
+  .ai {
+    background: #4CAF50;
+    color: #fff;
+    align-self: flex-start;
+    border-bottom-left-radius: 0;
+  }
+
+  .inputArea {
+    display: flex;
+    gap: 8px;
+  }
+
+  .inputArea input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+  }
+
+  .inputArea button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #4CAF50;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .inputArea button img {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Typing animation */
+  .typing-animation {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 8px;
+    width: 40px;
+    justify-content: center;
+  }
+
+  .typing-animation span {
+    width: 8px;
+    height: 8px;
+    background-color: #fff;
+    border-radius: 50%;
+    display: inline-block;
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+
+  .typing-animation span:nth-child(1) { animation-delay: 0s; }
+  .typing-animation span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-animation span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<h1>StarHub CBT Support Team</h1>
+
+<div id="chatContainer">
+  <div id="messages"></div>
+  <div class="inputArea">
+    <input type="text" id="userInput" placeholder="Type your question here..."/>
+    <button id="sendBtn">
+      <img src="https://i.postimg.cc/pTThmLrR/Background-Eraser-20260213-152934808.png" alt="Send">
+    </button>
+  </div>
+</div>
+
+<script>
+  // Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyBQHoqSFbY_Z4DbwGbFzrPg2chbE7gdS04",
+    authDomain: "starhub-cbt-system.firebaseapp.com",
+    projectId: "starhub-cbt-system",
+    storageBucket: "starhub-cbt-system.appspot.com",
+    messagingSenderId: "738358959988",
+    appId: "1:738358959988:web:5ba5600cc7b6d107add621",
+    measurementId: "G-QD9766ZNVJ"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const messagesDiv = document.getElementById("messages");
+  const input = document.getElementById("userInput");
+  const sendBtn = document.getElementById("sendBtn");
+
+  const candidateName = localStorage.getItem("candidateName") || "Candidate";
+
+  function addMessage(msg,type){
+    const div = document.createElement("div");
+    div.className = `bubble ${type}`;
+    div.textContent = msg;
+    messagesDiv.appendChild(div);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  }
+
+  async function handleQuestion(q){
+    if(!q.trim()) return;
+    addMessage(q,"user");
+
+    // Typing animation
+    const typingDiv = document.createElement("div");
+    typingDiv.className = "bubble ai typing-animation";
+    typingDiv.innerHTML = `<span></span><span></span><span></span>`;
+    messagesDiv.appendChild(typingDiv);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    const questionKey = q.toLowerCase().trim();
+    const answerDoc = await db.collection("aiAnswers").doc(questionKey).get();
+
+    await new Promise(res => setTimeout(res,4000)); // 4 seconds typing
+
+    messagesDiv.removeChild(typingDiv);
+
+    if(answerDoc.exists && answerDoc.data().answer){
+      addMessage(answerDoc.data().answer,"ai");
+    } else {
+      // Log for Admin
+      await db.collection("pendingQuestions").add({
+        question:q,
+        candidateName:candidateName,
+        timestamp:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      addMessage(`Thanks ${candidateName}! Our support team will provide an answer shortly.`,"ai");
+    }
+  }
+
+  sendBtn.onclick = ()=>{
+    handleQuestion(input.value);
+    input.value="";
+  }
+
+  input.addEventListener("keypress", e=>{
+    if(e.key==="Enter") {
+      handleQuestion(input.value);
+      input.value="";
+    }
+  });
+</script>
+
+</body>
+</html>
